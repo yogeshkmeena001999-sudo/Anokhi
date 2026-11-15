@@ -43,16 +43,55 @@ app.get('/api/stores', async (req, res) => {
   }
 });
 
-// Get all products
+// Get all products (with store name)
 app.get('/api/products', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM products');
+    const result = await pool.query(`
+      SELECT p.*, s.name AS store_name 
+      FROM products p 
+      LEFT JOIN dark_stores s ON p.store_id = s.id
+      ORDER BY p.id DESC
+    `);
     res.json({ success: true, products: result.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// Save a new store
+app.post('/api/stores', async (req, res) => {
+  const { name, address, city } = req.body;
+  try {
+    const result = await pool.query(
+      `INSERT INTO dark_stores (name, address, city, is_active)
+       VALUES ($1, $2, $3, true) RETURNING *`,
+      [name, address, city]
+    );
+    res.status(201).json({ success: true, store: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Save a new product under a specific store
+app.post('/api/products', async (req, res) => {
+  const { store_id, sku, name, category, unit_label, mrp, selling_price, image_url } = req.body;
+  try {
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS store_id INTEGER;`);
+    const result = await pool.query(
+      `INSERT INTO products (store_id, sku, name, category, unit_label, mrp, selling_price, image_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [store_id, sku, name, category, unit_label, mrp, selling_price, image_url]
+    );
+    res.status(201).json({ success: true, product: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 
 
 // --- AUTO-CREATE TABLES ON BOOT ---
