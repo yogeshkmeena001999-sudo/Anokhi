@@ -21,6 +21,15 @@ app.use(express.json());
 app.get('/', (req, res) => {
   res.send('Anokhi backend server is running successfully!');
 });
+app.get('/test-db', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW()');
+    res.json({ success: true, time: result.rows[0].now });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 
 // --- AUTO-CREATE TABLES ON BOOT ---
