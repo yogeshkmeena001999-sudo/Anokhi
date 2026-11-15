@@ -21,6 +21,7 @@ app.use(express.json());
 app.get('/', (req, res) => {
   res.send('Anokhi backend server is running successfully!');
 });
+
 app.get('/test-db', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW()');
