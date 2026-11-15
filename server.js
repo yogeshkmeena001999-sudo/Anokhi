@@ -18,9 +18,8 @@ const pool = new Pool({
 });
 
 app.use(express.json());
-app.get('/', (req, res) => {
-  res.send('Anokhi backend server is running successfully!');
-});
+app.use(express.static('public'));
+
 
 app.get('/test-db', async (req, res) => {
   try {
