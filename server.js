@@ -30,6 +30,29 @@ app.get('/test-db', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+// --- API ROUTES ---
+
+// Get all dark stores
+app.get('/api/stores', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM dark_stores WHERE is_active = true');
+    res.json({ success: true, stores: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get all products
+app.get('/api/products', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM products');
+    res.json({ success: true, products: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 
 // --- AUTO-CREATE TABLES ON BOOT ---
