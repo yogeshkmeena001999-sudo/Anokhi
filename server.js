@@ -18,6 +18,10 @@ const pool = new Pool({
 });
 
 app.use(express.json());
+app.get('/', (req, res) => {
+  res.send('Anokhi backend server is running successfully!');
+});
+
 
 // --- AUTO-CREATE TABLES ON BOOT ---
 async function initializeDatabase() {
