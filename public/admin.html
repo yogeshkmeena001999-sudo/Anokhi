@@ -15,6 +15,17 @@
   </style>
 </head>
 <body>
+  <!-- Cloud Auto-Sync Box -->
+  <div class="box" style="border: 2px solid #10b981;">
+    <h2>⚡ Auto-Connect Cloud Stores & Catalog</h2>
+    <p style="font-size: 0.85rem; color: #555; margin-bottom: 10px;">
+      Paste any Cloud JSON Feed URL (GitHub Raw, AWS S3, Firebase, or Partner API) to automatically import all stores and products.
+    </p>
+    <form id="cloud-sync-form">
+      <input type="url" id="feed_url" placeholder="https://example.com/stores-catalog.json" required />
+      <button type="submit">Sync Stores & Products Automatically</button>
+    </form>
+  </div>
 
   <!-- Box 1: Add Store -->
   <div class="box">
