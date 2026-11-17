@@ -91,6 +91,45 @@ app.post('/api/products', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+// Place a new customer order (Cash on Delivery)
+app.post('/api/orders', async (req, res) => {
+  const { customer_name, customer_phone, delivery_address, items, total_amount } = req.body;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id SERIAL PRIMARY KEY,
+        customer_name VARCHAR(100) NOT NULL,
+        customer_phone VARCHAR(20) NOT NULL,
+        delivery_address TEXT NOT NULL,
+        items JSONB NOT NULL,
+        total_amount NUMERIC(10, 2) NOT NULL,
+        status VARCHAR(30) DEFAULT 'Pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    const result = await pool.query(
+      `INSERT INTO orders (customer_name, customer_phone, delivery_address, items, total_amount)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [customer_name, customer_phone, delivery_address, JSON.stringify(items), total_amount]
+    );
+    res.status(201).json({ success: true, order: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get all orders (for your Admin Panel)
+app.get('/api/orders', async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT * FROM orders ORDER BY id DESC`);
+    res.json({ success: true, orders: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 
 
