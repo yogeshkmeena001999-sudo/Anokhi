@@ -119,6 +119,138 @@ app.post('/api/orders', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+// --- AUTOMATIC CLOUD STORE & PRODUCT SYNC ---
+
+// 1. Pull stores & products automatically from any external Cloud JSON URL
+app.post('/api/sync-cloud', async (req, res) => {
+  const { feed_url } = req.body;
+  if (!feed_url) {
+    return res.status(400).json({ success: false, error: 'Please provide a valid Cloud JSON URL.' });
+  }
+
+  try {
+    // Ensure unique columns exist so repeated syncs update instead of duplicating
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS store_id UUID;`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku);`);
+
+    // Fetch live data from the external cloud server
+    const response = await fetch(feed_url);
+    if (!response.ok) throw new Error(`Cloud server responded with status ${response.status}`);
+    const cloudData = await response.json();
+
+    let storesSynced = 0;
+    let productsSynced = 0;
+
+    // Expected format: { stores: [ { name, address, city, products: [...] } ] }
+    const storesList = cloudData.stores || [];
+
+    for (const s of storesList) {
+      // Find existing store by name or insert new one
+      let storeRes = await pool.query(`SELECT id FROM dark_stores WHERE name = $1 LIMIT 1`, [s.name]);
+      let storeId;
+
+      if (storeRes.rows.length > 0) {
+        storeId = storeRes.rows[0].id;
+        await pool.query(
+          `UPDATE dark_stores SET address = $1, is_active = true WHERE id = $2`,
+          [s.address || 'Cloud Partner Store', storeId]
+        );
+      } else {
+        const insertStore = await pool.query(
+          `INSERT INTO dark_stores (name, address, is_active) VALUES ($1, $2, true) RETURNING id`,
+          [s.name, s.address || 'Cloud Partner Store']
+        );
+        storeId = insertStore.rows[0].id;
+      }
+      storesSynced++;
+
+      // Sync all products belonging to this cloud store
+      if (Array.isArray(s.products)) {
+        for (const p of s.products) {
+          await pool.query(
+            `INSERT INTO products (store_id, sku, name, category, unit_label, mrp, selling_price, image_url)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT (sku) DO UPDATE SET
+               store_id = EXCLUDED.store_id,
+               name = EXCLUDED.name,
+               category = EXCLUDED.category,
+               unit_label = EXCLUDED.unit_label,
+               mrp = EXCLUDED.mrp,
+               selling_price = EXCLUDED.selling_price,
+               image_url = EXCLUDED.image_url`,
+            [
+              storeId,
+              p.sku,
+              p.name,
+              p.category || 'General',
+              p.unit_label || '1 Unit',
+              p.mrp || p.selling_price,
+              p.selling_price,
+              p.image_url || ''
+            ]
+          );
+          productsSynced++;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Synced ${storesSynced} store(s) and ${productsSynced} product(s) from cloud!`
+    });
+  } catch (err) {
+    console.error('Cloud Sync Error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2. Webhook endpoint: External cloud servers can push live stores/products directly here
+app.post('/api/webhook/sync', async (req, res) => {
+  try {
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS store_id UUID;`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku);`);
+
+    const { store, products } = req.body;
+    if (!store || !store.name) {
+      return res.status(400).json({ success: false, error: 'Missing store object with name' });
+    }
+
+    let storeRes = await pool.query(`SELECT id FROM dark_stores WHERE name = $1 LIMIT 1`, [store.name]);
+    let storeId;
+
+    if (storeRes.rows.length > 0) {
+      storeId = storeRes.rows[0].id;
+    } else {
+      const created = await pool.query(
+        `INSERT INTO dark_stores (name, address, is_active) VALUES ($1, $2, true) RETURNING id`,
+        [store.name, store.address || 'Auto-Connected Cloud Store']
+      );
+      storeId = created.rows[0].id;
+    }
+
+    let count = 0;
+    if (Array.isArray(products)) {
+      for (const p of products) {
+        await pool.query(
+          `INSERT INTO products (store_id, sku, name, category, unit_label, mrp, selling_price, image_url)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (sku) DO UPDATE SET
+             selling_price = EXCLUDED.selling_price,
+             mrp = EXCLUDED.mrp,
+             name = EXCLUDED.name,
+             image_url = EXCLUDED.image_url`,
+          [storeId, p.sku, p.name, p.category || 'General', p.unit_label || '1 Pc', p.mrp, p.selling_price, p.image_url || '']
+        );
+        count++;
+      }
+    }
+
+    res.status(200).json({ success: true, store_id: storeId, products_updated: count });
+  } catch (err) {
+    console.error('Webhook Sync Error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // Get all orders (for your Admin Panel)
 app.get('/api/orders', async (req, res) => {
