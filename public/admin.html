@@ -126,6 +126,33 @@
         alert('Error: ' + data.error);
       }
     });
+    document.getElementById('cloud-sync-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const feedUrl = document.getElementById('feed_url').value;
+      const btn = e.target.querySelector('button');
+      btn.textContent = 'Syncing from cloud...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/sync-cloud', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ feed_url: feedUrl })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(data.message);
+          loadStores();
+        } else {
+          alert('Sync failed: ' + data.error);
+        }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        btn.textContent = 'Sync Stores & Products Automatically';
+        btn.disabled = false;
+      }
+    });
 
     loadStores();
   </script>
