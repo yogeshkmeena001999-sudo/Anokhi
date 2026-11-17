@@ -3,84 +3,208 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Anokhi Store</title>
+  <title>Anokhi - Online Store</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: #f4f6f8; color: #1a1a1a; }
-    header { background: #10b981; color: white; padding: 16px 20px; position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { background: #f4f6f8; color: #1a1a1a; padding-bottom: 80px; }
+    header { background: #10b981; color: white; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
     header h1 { font-size: 1.4rem; font-weight: 700; }
-    .container { max-width: 1000px; margin: 20px auto; padding: 0 16px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+    .cart-btn { background: white; color: #10b981; border: none; padding: 8px 14px; border-radius: 20px; font-weight: 700; font-size: 0.95rem; cursor: pointer; }
+    .container { max-width: 900px; margin: 20px auto; padding: 0 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
     .card { background: white; border-radius: 12px; padding: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); display: flex; flex-direction: column; justify-content: space-between; }
-    .card img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; background: #eee; margin-bottom: 10px; }
-    .category { font-size: 0.72rem; color: #10b981; font-weight: 600; text-transform: uppercase; }
-    .title { font-size: 0.95rem; font-weight: 600; margin: 4px 0; }
-    .unit { font-size: 0.8rem; color: #666; margin-bottom: 10px; }
+    .card img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; background: #eee; margin-bottom: 8px; }
+    .card h3 { font-size: 0.95rem; margin-bottom: 4px; }
+    .unit { font-size: 0.8rem; color: #666; margin-bottom: 8px; }
     .price-row { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
     .price { font-weight: 700; font-size: 1rem; }
-    .mrp { font-size: 0.78rem; color: #999; text-decoration: line-through; margin-left: 4px; }
-    .btn { background: #ecfdf5; color: #059669; border: 1px solid #10b981; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer; }
-    .btn:active { background: #10b981; color: white; }
-    .empty { text-align: center; padding: 40px 20px; color: #666; grid-column: 1 / -1; }
+    .mrp { text-decoration: line-through; color: #999; font-size: 0.8rem; margin-left: 4px; }
+    .add-btn { background: #10b981; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+    .qty-box { display: flex; align-items: center; gap: 8px; background: #10b981; color: white; border-radius: 6px; padding: 4px 8px; font-weight: 700; }
+    .qty-box button { background: none; border: none; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; padding: 0 4px; }
+    
+    /* Cart & Checkout Modal */
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; justify-content: center; align-items: flex-end; }
+    .modal { background: white; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 20px; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+    .close-btn { background: none; border: none; font-size: 1.4rem; cursor: pointer; }
+    .cart-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    .total-row { display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 700; margin: 16px 0; }
+    input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; }
+    .order-btn { width: 100%; padding: 14px; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer; }
+    .empty { text-align: center; color: #666; padding: 40px 0; }
   </style>
 </head>
 <body>
 
   <header>
     <h1>Anokhi</h1>
-    <span id="cart-count">Cart: 0</span>
+    <button class="cart-btn" onclick="openCart()">Cart: <span id="cart-count">0</span></button>
   </header>
 
   <div class="container">
-    <div id="product-grid" class="grid">
-      <div class="empty">Loading products...</div>
+    <div id="product-grid" class="grid"></div>
+    <p id="empty-msg" class="empty" style="display:none;">No products available right now. Add products to your database to see them here!</p>
+  </div>
+
+  <!-- Cart & Checkout Drawer -->
+  <div id="cart-modal" class="modal-bg">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Your Cart</h2>
+        <button class="close-btn" onclick="closeCart()">✕</button>
+      </div>
+      <div id="cart-items"></div>
+      <div class="total-row">
+        <span>Total Bill</span>
+        <span>₹<span id="cart-total">0</span></span>
+      </div>
+
+      <form id="checkout-form">
+        <h3 style="margin-bottom: 10px; font-size: 1rem;">Delivery Details</h3>
+        <input type="text" id="cust_name" placeholder="Your Full Name" required />
+        <input type="tel" id="cust_phone" placeholder="Mobile Number (10 digits)" required />
+        <textarea id="cust_address" rows="3" placeholder="Complete Delivery Address (House No, Street, Landmark)" required></textarea>
+        <button type="submit" class="order-btn">Place Order (Cash on Delivery)</button>
+      </form>
     </div>
   </div>
 
   <script>
-    let cartCount = 0;
-
-    function addToCart(name) {
-      cartCount++;
-      document.getElementById('cart-count').textContent = `Cart: ${cartCount}`;
-      alert(`${name} added to cart!`);
-    }
+    let allProducts = [];
+    let cart = {}; // { productId: { product, qty } }
 
     async function loadProducts() {
+      const res = await fetch('/api/products');
+      const data = await res.json();
       const grid = document.getElementById('product-grid');
-      try {
-        const res = await fetch('/api/products');
-        const data = await res.json();
+      const emptyMsg = document.getElementById('empty-msg');
 
-        if (!data.success || !data.products || data.products.length === 0) {
-          grid.innerHTML = '<div class="empty">No products available right now. Add products to your database to see them here!</div>';
-          return;
-        }
+      if (data.success && data.products.length > 0) {
+        allProducts = data.products;
+        renderProducts();
+      } else {
+        emptyMsg.style.display = 'block';
+      }
+    }
 
-        grid.innerHTML = data.products.map(p => `
+    function renderProducts() {
+      const grid = document.getElementById('product-grid');
+      grid.innerHTML = allProducts.map(p => {
+        const inCart = cart[p.id] ? cart[p.id].qty : 0;
+        return `
           <div class="card">
             <div>
-              <img src="${p.image_url || 'https://placehold.co/300x200?text=Anokhi'}" alt="${p.name}" />
-              <div class="category">${p.category}</div>
-              <div class="title">${p.name}</div>
-              <div class="unit">${p.unit_label}</div>
+              <img src="${p.image_url || 'https://via.placeholder.com/200?text=Anokhi'}" alt="${p.name}" />
+              <h3>${p.name}</h3>
+              <div class="unit">${p.unit_label || ''}</div>
             </div>
             <div class="price-row">
               <div>
                 <span class="price">₹${p.selling_price}</span>
                 ${p.mrp > p.selling_price ? `<span class="mrp">₹${p.mrp}</span>` : ''}
               </div>
-              <button class="btn" onclick="addToCart('${p.name.replace(/'/g, "\\'")}')">ADD</button>
+              ${inCart === 0 
+                ? `<button class="add-btn" onclick="updateQty(${p.id}, 1)">ADD</button>`
+                : `<div class="qty-box">
+                     <button onclick="updateQty(${p.id}, -1)">-</button>
+                     <span>${inCart}</span>
+                     <button onclick="updateQty(${p.id}, 1)">+</button>
+                   </div>`
+              }
             </div>
           </div>
-        `).join('');
-      } catch (err) {
-        grid.innerHTML = '<div class="empty">Failed to load products. Please try again later.</div>';
-      }
+        `;
+      }).join('');
     }
+
+    function updateQty(id, change) {
+      const product = allProducts.find(p => p.id === id);
+      if (!product) return;
+      if (!cart[id]) cart[id] = { product, qty: 0 };
+      cart[id].qty += change;
+      if (cart[id].qty <= 0) delete cart[id];
+
+      updateCartCount();
+      renderProducts();
+      renderCartModal();
+    }
+
+    function updateCartCount() {
+      const totalItems = Object.values(cart).reduce((sum, item) => sum + item.qty, 0);
+      document.getElementById('cart-count').textContent = totalItems;
+    }
+
+    function openCart() {
+      if (Object.keys(cart).length === 0) {
+        alert('Your cart is empty! Add some items first.');
+        return;
+      }
+      renderCartModal();
+      document.getElementById('cart-modal').style.display = 'flex';
+    }
+
+    function closeCart() {
+      document.getElementById('cart-modal').style.display = 'none';
+    }
+
+    function renderCartModal() {
+      const list = document.getElementById('cart-items');
+      let total = 0;
+      list.innerHTML = Object.values(cart).map(item => {
+        const sub = item.product.selling_price * item.qty;
+        total += sub;
+        return `
+          <div class="cart-item">
+            <div>
+              <strong>${item.product.name}</strong><br/>
+              <small>₹${item.product.selling_price} × ${item.qty}</small>
+            </div>
+            <div><strong>₹${sub.toFixed(2)}</strong></div>
+          </div>
+        `;
+      }).join('');
+      document.getElementById('cart-total').textContent = total.toFixed(2);
+    }
+
+    document.getElementById('checkout-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const items = Object.values(cart).map(i => ({
+        id: i.product.id,
+        name: i.product.name,
+        qty: i.qty,
+        price: i.product.selling_price
+      }));
+      const total = parseFloat(document.getElementById('cart-total').textContent);
+
+      const payload = {
+        customer_name: document.getElementById('cust_name').value,
+        customer_phone: document.getElementById('cust_phone').value,
+        delivery_address: document.getElementById('cust_address').value,
+        items,
+        total_amount: total
+      };
+
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Order #${data.order.id} placed successfully! Thank you for shopping with Anokhi.`);
+        cart = {};
+        updateCartCount();
+        renderProducts();
+        closeCart();
+        e.target.reset();
+      } else {
+        alert('Could not place order: ' + data.error);
+      }
+    });
 
     loadProducts();
   </script>
-
 </body>
 </html>
+
