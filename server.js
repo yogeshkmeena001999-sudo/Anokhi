@@ -118,7 +118,25 @@ app.post('/api/orders', async (req, res) => {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });
   }
+});// Update order status (e.g., Pending -> Delivered)
+app.patch('/api/orders/:id', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE orders SET status = $1 WHERE id = $2 RETURNING *`,
+      [status, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    res.json({ success: true, order: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
+
 // --- AUTOMATIC CLOUD STORE & PRODUCT SYNC ---
 
 // 1. Pull stores & products automatically from any external Cloud JSON URL
