@@ -62,7 +62,8 @@ app.get('/api/products', async (req, res) => {
 // Save a new store
 app.post('/api/stores', async (req, res) => {
   const { name, address, city } = req.body;
-  try {
+  try {    await pool.query('ALTER TABLE dark_stores ADD COLUMN IF NOT EXISTS city VARCHAR(100);');
+
     const result = await pool.query(
       `INSERT INTO dark_stores (name, address, city, is_active)
        VALUES ($1, $2, $3, true) RETURNING *`,
