@@ -210,8 +210,8 @@ app.post('/api/sync-cloud', async (req, res) => {
               prod.selling_price || 0,
               prod.image_url || ''
             ]
-  
-
+          ]
+       ) );
     res.json({
       success: true,
       message: `Synced ${storesSynced} store(s) and ${productsSynced} product(s) from cloud!`
