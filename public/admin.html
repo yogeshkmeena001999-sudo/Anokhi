@@ -6,20 +6,38 @@
   <title>Anokhi Admin Panel</title>
   <style>
     body { font-family: -apple-system, sans-serif; background: #f4f6f8; padding: 16px; color: #1a1a1a; }
-    .box { max-width: 480px; margin: 0 auto 20px auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-    h2 { margin-top: 0; margin-bottom: 14px; color: #10b981; font-size: 1.2rem; }
+    .box { max-width: 520px; margin: 0 auto 20px auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    h2 { margin-top: 0; margin-bottom: 14px; color: #10b981; font-size: 1.2rem; display: flex; justify-content: space-between; align-items: center; }
     input, select { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 0.95rem; }
     button { width: 100%; padding: 12px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; }
     button:active { background: #059669; }
+    .refresh-btn { width: auto; padding: 6px 12px; font-size: 0.85rem; background: #e5e7eb; color: #111; }
+    .order-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #fafafa; }
+    .order-header { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 6px; }
+    .badge { padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; }
+    .badge-pending { background: #fef3c7; color: #b45309; }
+    .badge-delivered { background: #d1fae5; color: #065f46; }
+    .order-items { font-size: 0.9rem; margin: 8px 0; padding-left: 16px; color: #333; }
+    .deliver-btn { background: #059669; padding: 8px; font-size: 0.9rem; margin-top: 8px; }
     .link { display: block; text-align: center; margin-top: 10px; color: #10b981; font-weight: 600; text-decoration: none; }
   </style>
 </head>
 <body>
+
+  <!-- Incoming Customer Orders -->
+  <div class="box" style="border-top: 4px solid #10b981;">
+    <h2>
+      <span>📦 Incoming Orders</span>
+      <button type="button" class="refresh-btn" onclick="loadOrders()">↻ Refresh</button>
+    </h2>
+    <div id="orders-list">Loading orders...</div>
+  </div>
+
   <!-- Cloud Auto-Sync Box -->
-  <div class="box" style="border: 2px solid #10b981;">
+  <div class="box">
     <h2>⚡ Auto-Connect Cloud Stores & Catalog</h2>
     <p style="font-size: 0.85rem; color: #555; margin-bottom: 10px;">
-      Paste any Cloud JSON Feed URL (GitHub Raw, AWS S3, Firebase, or Partner API) to automatically import all stores and products.
+      Paste any Cloud JSON Feed URL to automatically import all stores and products.
     </p>
     <form id="cloud-sync-form">
       <input type="url" id="feed_url" placeholder="https://example.com/stores-catalog.json" required />
@@ -58,6 +76,53 @@
   </div>
 
   <script>
+    async function loadOrders() {
+      const container = document.getElementById('orders-list');
+      try {
+        const res = await fetch('/api/orders');
+        const data = await res.json();
+        if (!data.success || !data.orders || data.orders.length === 0) {
+          container.innerHTML = '<p style="color:#666; font-size:0.9rem;">No customer orders yet.</p>';
+          return;
+        }
+
+        container.innerHTML = data.orders.map(order => {
+          const isDelivered = order.status === 'Delivered';
+          const itemsList = (order.items || []).map(i => `<li>${i.name} × ${i.qty} (₹${i.price * i.qty})</li>`).join('');
+          return `
+            <div class="order-card">
+              <div class="order-header">
+                <span>Order #${order.id} — ₹${order.total_amount}</span>
+                <span class="badge ${isDelivered ? 'badge-delivered' : 'badge-pending'}">${order.status}</span>
+              </div>
+              <div style="font-size:0.9rem; margin-bottom:4px;">
+                <strong>${order.customer_name}</strong> • <a href="tel:${order.customer_phone}">${order.customer_phone}</a>
+              </div>
+              <div style="font-size:0.85rem; color:#555; margin-bottom:6px;">📍 ${order.delivery_address}</div>
+              <ul class="order-items">${itemsList}</ul>
+              ${!isDelivered ? `<button class="deliver-btn" onclick="markDelivered(${order.id})">✓ Mark as Delivered</button>` : ''}
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        container.innerHTML = '<p style="color:red; font-size:0.9rem;">Could not load orders yet. Place a test order first!</p>';
+      }
+    }
+
+    async function markDelivered(orderId) {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Delivered' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        loadOrders();
+      } else {
+        alert('Error updating order: ' + data.error);
+      }
+    }
+
     async function loadStores() {
       const res = await fetch('/api/stores');
       const data = await res.json();
@@ -72,6 +137,34 @@
         });
       }
     }
+
+    document.getElementById('cloud-sync-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const feedUrl = document.getElementById('feed_url').value;
+      const btn = e.target.querySelector('button');
+      btn.textContent = 'Syncing from cloud...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/sync-cloud', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ feed_url: feedUrl })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(data.message);
+          loadStores();
+        } else {
+          alert('Sync failed: ' + data.error);
+        }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        btn.textContent = 'Sync Stores & Products Automatically';
+        btn.disabled = false;
+      }
+    });
 
     document.getElementById('store-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -126,34 +219,8 @@
         alert('Error: ' + data.error);
       }
     });
-    document.getElementById('cloud-sync-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const feedUrl = document.getElementById('feed_url').value;
-      const btn = e.target.querySelector('button');
-      btn.textContent = 'Syncing from cloud...';
-      btn.disabled = true;
 
-      try {
-        const res = await fetch('/api/sync-cloud', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ feed_url: feedUrl })
-        });
-        const data = await res.json();
-        if (data.success) {
-          alert(data.message);
-          loadStores();
-        } else {
-          alert('Sync failed: ' + data.error);
-        }
-      } catch (err) {
-        alert('Network error: ' + err.message);
-      } finally {
-        btn.textContent = 'Sync Stores & Products Automatically';
-        btn.disabled = false;
-      }
-    });
-
+    loadOrders();
     loadStores();
   </script>
 </body>
