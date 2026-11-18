@@ -28,7 +28,7 @@ async function initDB() {
 
       CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
-        store_id INT,
+        store_id TEXT,
         sku VARCHAR(100) UNIQUE NOT NULL,
         name VARCHAR(255) NOT NULL,
         category VARCHAR(100),
@@ -50,6 +50,11 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Ensure store_id column is TEXT even if table existed previously with INT or UUID
+    await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS store_id TEXT;');
+    await pool.query('ALTER TABLE products ALTER COLUMN store_id TYPE TEXT USING store_id::TEXT;');
+
     console.log('Database tables verified/initialized successfully.');
   } catch (err) {
     console.error('Database initialization error:', err);
@@ -81,7 +86,7 @@ app.get('/api/products', async (req, res) => {
     let params = [];
     if (store_id) {
       query += ' WHERE store_id = $1';
-      params.push(store_id);
+      params.push(String(store_id));
     }
     const result = await pool.query(query, params);
     res.json({ success: true, products: result.rows });
@@ -152,18 +157,19 @@ app.post('/api/sync-cloud', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid JSON format: missing "stores" array' });
     }
 
+    // Ensure required columns exist and support TEXT store IDs
+    await pool.query('ALTER TABLE dark_stores ADD COLUMN IF NOT EXISTS city VARCHAR(100);');
+    await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS store_id TEXT;');
+    await pool.query('ALTER TABLE products ALTER COLUMN store_id TYPE TEXT USING store_id::TEXT;');
+    await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS unit_label VARCHAR(50);');
+    await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(100);');
+    await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;');
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku);');
+
     let syncedStoresCount = 0;
     let syncedProductsCount = 0;
 
     for (const store of data.stores) {
-      // Ensure required columns exist dynamically
-      await pool.query('ALTER TABLE dark_stores ADD COLUMN IF NOT EXISTS city VARCHAR(100);');
-      await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS store_id INT;');
-      await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS unit_label VARCHAR(50);');
-      await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(100);');
-      await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;');
-      await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku);');
-
       // Insert or update store
       let storeResult = await pool.query(
         'SELECT id FROM dark_stores WHERE name = $1 AND address = $2 LIMIT 1',
@@ -172,17 +178,17 @@ app.post('/api/sync-cloud', async (req, res) => {
 
       let storeId;
       if (storeResult.rows.length > 0) {
-        storeId = storeResult.rows[0].id;
+        storeId = String(storeResult.rows[0].id);
         await pool.query(
           'UPDATE dark_stores SET city = $1, is_active = true WHERE id = $2',
-          [store.city || '', storeId]
+          [store.city || '', storeResult.rows[0].id]
         );
       } else {
         const newStore = await pool.query(
           'INSERT INTO dark_stores (name, address, city, is_active) VALUES ($1, $2, $3, true) RETURNING id',
           [store.name, store.address, store.city || '']
         );
-        storeId = newStore.rows[0].id;
+        storeId = String(newStore.rows[0].id);
       }
       syncedStoresCount++;
 
@@ -230,4 +236,6 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Anokhi server running on port ${PORT}`);
 });
+
+ 
 
