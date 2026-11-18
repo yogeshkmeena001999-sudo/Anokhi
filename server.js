@@ -34,7 +34,7 @@ app.get('/test-db', async (req, res) => {
 
 // Get all dark stores
 app.get('/api/stores', async (req, res) => {
-  try {
+  try {await pool.query('ALTER TABLE dark_stores ADD COLUMN IF NOT EXISTS city VARCHAR(100);');
     const result = await pool.query('SELECT * FROM dark_stores WHERE is_active = true');
     res.json({ success: true, stores: result.rows });
   } catch (err) {
