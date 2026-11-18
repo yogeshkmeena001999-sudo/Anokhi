@@ -1,0 +1,38 @@
+{
+  "stores": [
+    {
+      "name": "Yogesh Store",
+      "address": "Near Mahima Panache",
+      "city": "Jaipur",
+      "products": [
+        {
+          "sku": "ANOKHI-001",
+          "name": "Amul Taaza Toned Milk",
+          "category": "Dairy",
+          "unit_label": "1 Litre",
+          "mrp": 56,
+          "selling_price": 54,
+          "image_url": ""
+        },
+        {
+          "sku": "ANOKHI-002",
+          "name": "Aashirvaad Shudh Chakki Atta",
+          "category": "Grocery",
+          "unit_label": "5 kg",
+          "mrp": 250,
+          "selling_price": 225,
+          "image_url": ""
+        },
+        {
+          "sku": "ANOKHI-003",
+          "name": "Tata Sampann Toor Dal",
+          "category": "Grocery",
+          "unit_label": "1 kg",
+          "mrp": 190,
+          "selling_price": 172,
+          "image_url": ""
+        }
+      ]
+    }
+  ]
+}
