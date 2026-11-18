@@ -141,7 +141,7 @@ app.patch('/api/orders/:id', async (req, res) => {
 // --- AUTOMATIC CLOUD STORE & PRODUCT SYNC ---
 
 // 1. Pull stores & products automatically from any external Cloud JSON URL
-app.post('/app.post('/api/sync-cloud', async (req, res) => {
+app.post('/api/sync-cloud', async (req, res) => {
   const { feed_url } = req.body;
   if (!feed_url) {
     return res.status(400).json({ success: false, error: 'Please provide a valid Cloud JSON URL' });
