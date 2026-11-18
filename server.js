@@ -141,73 +141,91 @@ app.patch('/api/orders/:id', async (req, res) => {
 // --- AUTOMATIC CLOUD STORE & PRODUCT SYNC ---
 
 // 1. Pull stores & products automatically from any external Cloud JSON URL
-app.post('/api/sync-cloud', async (req, res) => {
+app.post('/app.post('/api/sync-cloud', async (req, res) => {
   const { feed_url } = req.body;
   if (!feed_url) {
-    return res.status(400).json({ success: false, error: 'Please provide a valid Cloud JSON URL.' });
+    return res.status(400).json({ success: false, error: 'Please provide a valid Cloud JSON URL' });
   }
 
   try {
-    // Ensure unique columns exist so repeated syncs update instead of duplicating
-    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS store_id UUID;`);
-    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku);`);
-
-    // Fetch live data from the external cloud server
+    // Fetch JSON catalog from external URL
     const response = await fetch(feed_url);
-    if (!response.ok) throw new Error(`Cloud server responded with status ${response.status}`);
-    const cloudData = await response.json();
+    const data = await response.json();
 
-    let storesSynced = 0;
-    let productsSynced = 0;
+    if (!data.stores || !Array.isArray(data.stores)) {
+      return res.status(400).json({ success: false, error: 'Invalid JSON format: missing "stores" array' });
+    }
 
-    // Expected format: { stores: [ { name, address, city, products: [...] } ] }
-    const storesList = cloudData.stores || [];
+    let syncedStoresCount = 0;
+    let syncedProductsCount = 0;
 
-    for (const s of storesList) {
-      // Find existing store by name or insert new one
-      let storeRes = await pool.query(`SELECT id FROM dark_stores WHERE name = $1 LIMIT 1`, [s.name]);
+    for (const store of data.stores) {
+      // Ensure city column exists
+      await pool.query(`ALTER TABLE dark_stores ADD COLUMN IF NOT EXISTS city VARCHAR(100);`);
+
+      // Insert or update store based on name & address
+      let storeResult = await pool.query(
+        `SELECT id FROM dark_stores WHERE name = $1 AND address = $2 LIMIT 1`,
+        [store.name, store.address]
+      );
+
       let storeId;
-
-      if (storeRes.rows.length > 0) {
-        storeId = storeRes.rows[0].id;
+      if (storeResult.rows.length > 0) {
+        storeId = storeResult.rows[0].id;
         await pool.query(
-          `UPDATE dark_stores SET address = $1, is_active = true WHERE id = $2`,
-          [s.address || 'Cloud Partner Store', storeId]
+          `UPDATE dark_stores SET city = $1, is_active = true WHERE id = $2`,
+          [store.city || '', storeId]
         );
       } else {
-        const insertStore = await pool.query(
-          `INSERT INTO dark_stores (name, address, is_active) VALUES ($1, $2, true) RETURNING id`,
-          [s.name, s.address || 'Cloud Partner Store']
+        const newStore = await pool.query(
+          `INSERT INTO dark_stores (name, address, city, is_active) VALUES ($1, $2, $3, true) RETURNING id`,
+          [store.name, store.address, store.city || '']
         );
-        storeId = insertStore.rows[0].id;
+        storeId = newStore.rows[0].id;
       }
-      storesSynced++;
+      syncedStoresCount++;
 
-      // Sync all products belonging to this cloud store
-      if (Array.isArray(s.products)) {
-        for (const p of s.products) {
+      // Insert products for this store
+      if (store.products && Array.isArray(store.products)) {
+        for (const prod of store.products) {
+          await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS store_id INT;`);
+          await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS unit_label VARCHAR(50);`);
+          await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(100);`);
+          await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;`);
+
           await pool.query(
             `INSERT INTO products (store_id, sku, name, category, unit_label, mrp, selling_price, image_url)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             ON CONFLICT (sku) DO UPDATE SET
-               store_id = EXCLUDED.store_id,
-               name = EXCLUDED.name,
-               category = EXCLUDED.category,
-               unit_label = EXCLUDED.unit_label,
-               mrp = EXCLUDED.mrp,
-               selling_price = EXCLUDED.selling_price,
-               image_url = EXCLUDED.image_url`,
+             ON CONFLICT (sku) 
+             DO UPDATE SET store_id = EXCLUDED.store_id, name = EXCLUDED.name, category = EXCLUDED.category, 
+                           unit_label = EXCLUDED.unit_label, mrp = EXCLUDED.mrp, selling_price = EXCLUDED.selling_price, 
+                           image_url = EXCLUDED.image_url`,
             [
               storeId,
-              p.sku,
-              p.name,
-              p.category || 'General',
-              p.unit_label || '1 Unit',
-              p.mrp || p.selling_price,
-              p.selling_price,
-              p.image_url || ''
+              prod.sku,
+              prod.name,
+              prod.category || 'General',
+              prod.unit_label || '1 Pc',
+              prod.mrp || 0,
+              prod.selling_price || 0,
+              prod.image_url || ''
             ]
           );
+          syncedProductsCount++;
+        }
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Successfully synced ${syncedStoresCount} store(s) and ${syncedProductsCount} product(s)!` 
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
           productsSynced++;
         }
       }
