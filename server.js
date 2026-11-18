@@ -210,26 +210,7 @@ app.post('/api/sync-cloud', async (req, res) => {
               prod.selling_price || 0,
               prod.image_url || ''
             ]
-          );
-          syncedProductsCount++;
-        }
-      }
-    }
-
-    res.json({ 
-      success: true, 
-      message: `Successfully synced ${syncedStoresCount} store(s) and ${syncedProductsCount} product(s)!` 
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-          productsSynced++;
-        }
-      }
-    }
+  
 
     res.json({
       success: true,
